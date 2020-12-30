@@ -89,6 +89,7 @@ class Model(object):
         print("Model restored from file: %s" % save_path)
 
 
+#  no features ----- look
 class RecommenderGAE(Model):
     def __init__(self, placeholders, input_dim, num_classes, num_support,
                  learning_rate, num_basis_functions, hidden, num_users, num_items, accum,
@@ -164,6 +165,10 @@ class RecommenderGAE(Model):
                                                  self_connections=False))
 
         elif self.accum == 'stack':
+            print("======Model======layer.StackGCN")
+            print("input_dim",self.input_dim)
+            print("output_dim",self.hidden[0])
+
             self.layers.append(StackGCN(input_dim=self.input_dim,
                                         output_dim=self.hidden[0],
                                         support=self.support,
@@ -179,6 +184,9 @@ class RecommenderGAE(Model):
         else:
             raise ValueError('accumulation function option invalid, can only be stack or sum.')
 
+        print("======Model======layer.Dense")
+        print("input_dim:", self.hidden[0])
+        print("output_dim:", self.hidden[1])
         self.layers.append(Dense(input_dim=self.hidden[0],
                                  output_dim=self.hidden[1],
                                  act=lambda x: x,
@@ -186,6 +194,9 @@ class RecommenderGAE(Model):
                                  logging=self.logging,
                                  share_user_item_weights=True))
 
+        print("======Model======layer.Dense")
+        print("input_dim:", self.hidden[1])
+        print("num_weights:",self.num_basis_functions)
         self.layers.append(BilinearMixture(num_classes=self.num_classes,
                                            u_indices=self.u_indices,
                                            v_indices=self.v_indices,
@@ -200,6 +211,8 @@ class RecommenderGAE(Model):
                                            diagonal=False))
 
 
+
+# has   features-----  no look
 class RecommenderSideInfoGAE(Model):
     def __init__(self,  placeholders, input_dim, feat_hidden_dim, num_classes, num_support,
                  learning_rate, num_basis_functions, hidden, num_users, num_items, accum,

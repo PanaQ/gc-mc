@@ -4,6 +4,7 @@ from __future__ import print_function
 import numpy as np
 import scipy.sparse as sp
 import cPickle as pkl
+
 import os
 import h5py
 import pandas as pd
@@ -212,15 +213,7 @@ def load_data_monti(dataset, testing=False):
     num_users = M.shape[0]
     num_items = M.shape[1]
 
-    if dataset == 'flixster':
-        Wrow = load_matlab_file(path_dataset, 'W_users')
-        Wcol = load_matlab_file(path_dataset, 'W_movies')
-        u_features = Wrow
-        v_features = Wcol
-        # print(num_items, v_features.shape)
-        # v_features = np.eye(num_items)
-
-    elif dataset == 'douban':
+    if dataset == 'douban':
         Wrow = load_matlab_file(path_dataset, 'W_users')
         u_features = Wrow
         v_features = np.eye(num_items)
@@ -323,12 +316,14 @@ def load_data_monti(dataset, testing=False):
         val_labels, u_val_idx, v_val_idx, test_labels, u_test_idx, v_test_idx, class_values
 
 
-def load_official_trainvaltest_split(dataset, testing=False):
+def load_official_trainvaltest_split(dataset, testing=False, num=1):
     """
     Loads official train/test split and uses 10% of training samples for validaiton
     For each split computes 1-of-num_classes labels. Also computes training
     adjacency matrix. Assumes flattening happens everywhere in row-major fashion.
     """
+
+
 
     sep = '\t'
 
@@ -337,14 +332,20 @@ def load_official_trainvaltest_split(dataset, testing=False):
     fname = dataset
     data_dir = 'data/' + fname
 
-    download_dataset(fname, files, data_dir)
+    # download_dataset(fname, files, data_dir)
 
     dtypes = {
         'u_nodes': np.int32, 'v_nodes': np.int32,
         'ratings': np.float32, 'timestamp': np.float64}
 
-    filename_train = 'data/' + dataset + '/u1.base'
+    # filename_train = 'data/' + dataset + '/u1_2.base'
+    filename_train = 'data/' + dataset + '/u1_'+str(num)+'.base'
+
+    print(filename_train)
+
     filename_test = 'data/' + dataset + '/u1.test'
+
+
 
     data_train = pd.read_csv(
         filename_train, sep=sep, header=None,

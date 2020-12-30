@@ -8,6 +8,12 @@ import tensorflow as tf
 _LAYER_UIDS = {}
 
 
+
+
+
+
+
+
 def dot(x, y, sparse=False):
     """Wrapper for tf.matmul (sparse vs dense)."""
     if sparse:

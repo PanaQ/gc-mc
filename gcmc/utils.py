@@ -29,3 +29,39 @@ def construct_feed_dict(placeholders, u_features, v_features, u_features_nonzero
         feed_dict.update({placeholders['v_features_side']: v_features_side})
 
     return feed_dict
+
+
+
+# get_averge
+def get_averaged_weights(model_1,model_2):
+    print('get_averaged_weights')
+    # print(model_1.layers.layer1.weights_u)
+    # print(layer2.vars['weights_u'])
+
+
+
+
+
+
+    # -----------------------------------------------------------  GCN,Dense,BilineaMixtures
+    # print('-----------layer--------')
+    # # print(model.layers[0].weights_u)  # print(model.layers[0].weights_v)
+    # # [ < tf.Tensor  'recommendergae/split:0' shape = (2551, 100) dtype = float32 >,
+    # #   < tf.Tensor 'recommendergae/split:1'  shape = (2551, 100) dtype = float32 >,
+    # #   < tf.Tensor 'recommendergae/split:2' shape = (2551, 100)  dtype = float32 >,
+    # #   < tf.Tensor 'recommendergae/split:3'  shape = (2551, 100) dtype = float32 >,
+    # #   < tf.Tensor 'recommendergae/split:4'  shape = (2551, 100) dtype = float32 >]
+    #
+    #
+    # # print(model.layers[1].vars['weights_u'])
+    # print(model.layers[1].vars['weights_u']+model.layers[1].vars['weights_u'])
+
+    # < tf.Variable  'recommendergae/dense_1_vars/weights:0' shape = (500, 75) dtype = float32_ref >
+
+
+
+
+
+
+    # print(model.layers[2]._multiply_inputs_weights)
+

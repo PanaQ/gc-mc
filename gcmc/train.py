@@ -1,23 +1,22 @@
 """ Experiment runner for the model with knowledge graph attached to interaction data """
-
+# -*- coding: utf-8 -*-
 from __future__ import division
 from __future__ import print_function
 
 import argparse
 import datetime
 import time
-
 import tensorflow as tf
 import numpy as np
 import scipy.sparse as sp
 import sys
 import json
 
-from gcmc.preprocessing import create_trainvaltest_split, \
+from preprocessing import create_trainvaltest_split, \
     sparse_to_tuple, preprocess_user_item_features, globally_normalize_bipartite_adjacency, \
     load_data_monti, load_official_trainvaltest_split, normalize_features
-from gcmc.model import RecommenderGAE, RecommenderSideInfoGAE
-from gcmc.utils import construct_feed_dict
+from model import RecommenderGAE, RecommenderSideInfoGAE
+from utils import construct_feed_dict, get_averaged_weights
 
 # Set random seed
 # seed = 123 # use only for unit testing
@@ -25,17 +24,16 @@ seed = int(time.time())
 np.random.seed(seed)
 tf.set_random_seed(seed)
 
+# python train.py -d ml_100k --accum stack -do 0.7 -nleft -nb 2 -e 1000 --testing
 # Settings
 ap = argparse.ArgumentParser()
-ap.add_argument("-d", "--dataset", type=str, default="ml_1m",
-                choices=['ml_100k', 'ml_1m', 'ml_10m', 'douban', 'yahoo_music', 'flixster'],
-                help="Dataset string.")
+ap.add_argument("-d", "--dataset", type=str, default="ml_100k",
+                choices=['ml_100k', 'ml_1m', 'ml_10m', 'douban', 'yahoo_music'])
 
-ap.add_argument("-lr", "--learning_rate", type=float, default=0.01,
-                help="Learning rate")
+ap.add_argument("-lr", "--learning_rate", type=float, default=0.01)
 
-ap.add_argument("-e", "--epochs", type=int, default=2500,
-                help="Number training epochs")
+# ap.add_argument("-e", "--epochs", type=int, default=2500)
+ap.add_argument("-e", "--epochs", type=int, default=200)
 
 ap.add_argument("-hi", "--hidden", type=int, nargs=2, default=[500, 75],
                 help="Number hidden units in 1st and 2nd layer")
@@ -59,10 +57,14 @@ ap.add_argument("-ds", "--data_seed", type=int, default=1234,
 ap.add_argument("-sdir", "--summaries_dir", type=str, default='logs/' + str(datetime.datetime.now()).replace(' ', '_'),
                 help="Directory for saving tensorflow summaries.")
 
+
+
+
 # Boolean flags
 fp = ap.add_mutually_exclusive_group(required=False)
 fp.add_argument('-nsym', '--norm_symmetric', dest='norm_symmetric',
                 help="Option to turn on symmetric global normalization", action='store_true')
+
 fp.add_argument('-nleft', '--norm_left', dest='norm_symmetric',
                 help="Option to turn on left global normalization", action='store_false')
 ap.set_defaults(norm_symmetric=True)
@@ -94,6 +96,10 @@ args = vars(ap.parse_args())
 print('Settings:')
 print(args, '\n')
 
+
+
+
+
 # Define parameters
 DATASET = args['dataset']
 DATASEED = args['data_seed']
@@ -121,8 +127,6 @@ elif DATASET == 'ml_10m':
     print('\n WARNING: this might run out of RAM, consider using train_minibatch.py for dataset %s' % DATASET)
     print('If you want to proceed with this option anyway, uncomment this.\n')
     sys.exit(1)
-elif DATASET == 'flixster':
-    NUMCLASSES = 10
 elif DATASET == 'yahoo_music':
     NUMCLASSES = 71
     if ACCUM == 'sum':
@@ -131,7 +135,7 @@ elif DATASET == 'yahoo_music':
         print('If you want to proceed with this option anyway, uncomment this.\n')
         sys.exit(1)
 
-# Splitting dataset in training, validation and test set
+
 
 if DATASET == 'ml_1m' or DATASET == 'ml_10m':
     if FEATURES:
@@ -142,18 +146,21 @@ elif FEATURES:
     datasplit_path = 'data/' + DATASET + '/withfeatures.pickle'
 else:
     datasplit_path = 'data/' + DATASET + '/nofeatures.pickle'
+    print("============datasplit_path:"+datasplit_path)
 
 
-if DATASET == 'flixster' or DATASET == 'douban' or DATASET == 'yahoo_music':
+if  DATASET == 'douban' or DATASET == 'yahoo_music':
     u_features, v_features, adj_train, train_labels, train_u_indices, train_v_indices, \
         val_labels, val_u_indices, val_v_indices, test_labels, \
         test_u_indices, test_v_indices, class_values = load_data_monti(DATASET, TESTING)
 
 elif DATASET == 'ml_100k':
-    print("Using official MovieLens dataset split u1.base/u1.test with 20% validation set size...")
+    print('-------------------DATASET == ml_100k')
     u_features, v_features, adj_train, train_labels, train_u_indices, train_v_indices, \
         val_labels, val_u_indices, val_v_indices, test_labels, \
         test_u_indices, test_v_indices, class_values = load_official_trainvaltest_split(DATASET, TESTING)
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+
 else:
     print("Using random dataset split ...")
     u_features, v_features, adj_train, train_labels, train_u_indices, train_v_indices, \
@@ -162,12 +169,13 @@ else:
                                                                                  datasplit_path, SPLITFROMFILE,
                                                                                  VERBOSE)
 
-num_users, num_items = adj_train.shape
 
+num_users, num_items = adj_train.shape
 num_side_features = 0
 
 # feature loading
 if not FEATURES:
+    print("========not FEATURES")
     u_features = sp.identity(num_users, format='csr')
     v_features = sp.identity(num_items, format='csr')
 
@@ -227,12 +235,16 @@ num_support = len(support)
 support = sp.hstack(support, format='csr')
 support_t = sp.hstack(support_t, format='csr')
 
+
+print('num_support',num_support)
+
 if ACCUM == 'stack':
     div = HIDDEN[0] // num_support
     if HIDDEN[0] % num_support != 0:
         print("""\nWARNING: HIDDEN[0] (=%d) of stack layer is adjusted to %d such that
                   it can be evenly split in %d splits.\n""" % (HIDDEN[0], num_support * div, num_support))
     HIDDEN[0] = num_support * div
+
 
 # Collect all user and item nodes for test set
 test_u = list(set(test_u_indices))
@@ -282,6 +294,7 @@ if FEATURES:
     train_v_features_side = v_features_side[np.array(train_v)]
 
 else:
+    print("=======no features")
     test_u_features_side = None
     test_v_features_side = None
 
@@ -330,6 +343,7 @@ if FEATURES:
                                    num_side_features=num_side_features,
                                    logging=True)
 else:
+    print('=======model===== no  features')
     model = RecommenderGAE(placeholders,
                            input_dim=u_features.shape[1],
                            num_classes=NUMCLASSES,
@@ -362,6 +376,7 @@ u_features_nonzero = u_features[1].shape[0]
 v_features_nonzero = v_features[1].shape[0]
 
 # Feed_dicts for validation and test set stay constant over different update steps
+#validation  and test de Feed_dicts     zai butong genxin zhong  baochi  bubian
 train_feed_dict = construct_feed_dict(placeholders, u_features, v_features, u_features_nonzero,
                                       v_features_nonzero, train_support, train_support_t,
                                       train_labels, train_u_indices, train_v_indices, class_values, DO,
@@ -398,6 +413,8 @@ wait = 0
 
 print('Training...')
 
+
+
 for epoch in range(NB_EPOCH):
 
     t = time.time()
@@ -405,6 +422,7 @@ for epoch in range(NB_EPOCH):
     # Run single weight update
     # outs = sess.run([model.opt_op, model.loss, model.rmse], feed_dict=train_feed_dict)
     # with exponential moving averages
+
     outs = sess.run([model.training_op, model.loss, model.rmse], feed_dict=train_feed_dict)
 
     train_avg_loss = outs[1]
@@ -418,6 +436,9 @@ for epoch in range(NB_EPOCH):
               "val_loss=", "{:.5f}".format(val_avg_loss),
               "val_rmse=", "{:.5f}".format(val_rmse),
               "\t\ttime=", "{:.5f}".format(time.time() - t))
+
+
+
 
     if val_rmse < best_val_score:
         best_val_score = val_rmse
@@ -486,6 +507,9 @@ else:
     val_avg_loss, val_rmse = sess.run([model.loss, model.rmse], feed_dict=val_feed_dict)
     print('polyak val loss = ', val_avg_loss)
     print('polyak val rmse = ', val_rmse)
+
+
+
 
 print('\nSETTINGS:\n')
 for key, val in sorted(vars(ap.parse_args()).iteritems()):
